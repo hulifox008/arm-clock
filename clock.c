@@ -49,9 +49,71 @@ void gpio_init()
     writeb(0xFC, FIO1PIN+1);
 }
 
+void sys_init()
+{
+    /* Disable all interrupts */
+    writel(0xFFFFFFFF, ICER0);
+    writel(0xFFFFFFFF, ICER1);
+
+    /* P1.28 selected as MAT0.0 */
+    writeb(readb(PINSEL3+3)|0x03, PINSEL3+3);
+
+}
+
+void ms_delay()
+{
+    /* timer0 timer mode. */
+    writeb(0, T0CTCR);
+
+    writel(0, T0TC);
+    writel(0, T0PR);
+    writel(1000, T0MR0);
+    writel(0x02, T0MCR);
+    writel(0, T0CCR);
+
+    /* Toggle external match MAT0.0 */
+    writew(0x0030, T0EMR);
+}
+
+void hy32b_write_reg(unsigned char reg, unsigned short val)
+{
+    #define P1_BITBANG  0x23380680
+
+    /* put reg address on data bus */
+    writeb(reg, FIO0PIN);
+    writeb(0, FIO0PIN+2);
+
+    /* RS low, using bit-bang address. */
+    writeb(0, P1_BITBANG+4);
+    dmb();
+
+    /* Strobe CS_n, using bit-bang address. */
+    writeb(0, P1_BITBANG);
+    dmb();
+    writeb(1, P1_BITBANG);
+    dmb();
+
+    writeb(val&0xFF, FIO0PIN);
+    writeb((val>>8)&0xFF, FIO0PIN+2);
+
+    /* RS low, using bit-bang address. */
+    writeb(1, P1_BITBANG+4);
+    dmb();
+
+    /* Strobe CS_n, using bit-bang address. */
+    writeb(0, P1_BITBANG);
+    dmb();
+    writeb(1, P1_BITBANG);
+    dmb();
+
+}
+
 int clock_main()
 {
-    gpio_init();
+    sys_init();
+//    gpio_init();
+    ms_delay();
+    for(;;);
     return 0;
 }
 
