@@ -49,6 +49,17 @@
 #define ICER0       0xE000E180
 #define ICER1       0xE000E184
 
+#define CCLKSEL     0x400FC104
+#define CLKSRCSEL   0x400FC10C
+
+#define PLL0CON     0x400FC080
+#define PLL0CFG     0x400FC084
+#define PLL0STAT    0x400FC088
+#define PLL0FEED    0x400FC08C
+
+#define PCLKSEL0    0x400FC1A8
+#define PCLKSEL1    0x400FC1AC
+
 
 #define writeb(v, a)    (*(volatile unsigned char *)(a) = (v))
 #define writew(v, a)    (*(volatile unsigned short *)(a) = (v))

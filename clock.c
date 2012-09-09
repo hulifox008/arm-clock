@@ -49,11 +49,55 @@ void gpio_init()
     writeb(0xFC, FIO1PIN+1);
 }
 
+void pll0_feed()
+{
+    writeb(0xAA, PLL0FEED);
+    writeb(0x55, PLL0FEED);
+}
+
+/* Initialize the PLL0. By using 12M oscillator, this set N to 1 and M to 12. PLL0 output frequency is 288MHz. CPU devider is set to 3 to get a 96M CPU clock. */
+void pll0_init()
+{
+    /* disconnect pll0 */
+    writeb(readb(PLL0CON) & ~0x02, PLL0CON);
+    pll0_feed();
+    
+    /* disable ppl0 */
+    writeb(readb(PLL0CON) & ~0x01, PLL0CON);
+    pll0_feed();
+
+    /* N=1 M=12 */
+    writel(0x0000000B, PLL0CFG);
+    pll0_feed();
+
+    /* Enable pll0. */
+    writeb(0x01, PLL0CON);
+    pll0_feed();
+
+    /* set CPU clock devider to 3. */
+    writeb(0x02, CCLKSEL);
+
+    /* wait the pll to lock. */
+    while(!(readl(PLL0STAT)&0x04000000));
+
+    /* connect pll0 */
+    writeb(0x03, PLL0CON);
+    pll0_feed();
+}
+
 void sys_init()
 {
     /* Disable all interrupts */
     writel(0xFFFFFFFF, ICER0);
     writel(0xFFFFFFFF, ICER1);
+
+    /* select main oscillator as PLL0 input. */
+    writeb(0x01, CLKSRCSEL);
+
+    /* TIMER0 clock = 1/2 CPU clock */
+    writeb(0x08, PCLKSEL0);
+
+    pll0_init();
 
     /* P1.28 selected as MAT0.0 */
     writeb(readb(PINSEL3+3)|0x03, PINSEL3+3);
@@ -62,6 +106,9 @@ void sys_init()
 
 void ms_delay()
 {
+    /* reset the timer. */
+    writeb(0x02, T0TCR);
+
     /* timer0 timer mode. */
     writeb(0, T0CTCR);
 
@@ -73,6 +120,9 @@ void ms_delay()
 
     /* Toggle external match MAT0.0 */
     writew(0x0030, T0EMR);
+
+    /* start the timer. */
+    writeb(0x01, T0TCR);
 }
 
 void hy32b_write_reg(unsigned char reg, unsigned short val)
