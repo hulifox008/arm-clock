@@ -19,6 +19,8 @@
 #define FIO3PIN     0x2009C074
 #define FIO4PIN     0x2009C094
 
+#define P1_BITBANG  0x23380680
+
 #define PINSEL0     0x4002C000
 #define PINSEL1     0x4002C004
 #define PINSEL2     0x4002C008

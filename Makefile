@@ -10,10 +10,14 @@ clock.bin: clock.elf
 font.bin: gen_font_bin
 	./gen_font_bin > font.bin
 
+font.o: font.S font.bin
+	arm-eabi-as font.S -o font.o
+
+
 gen_font_bin: gen_font_bin.c font.c
 	${CC} gen_font_bin.c  -o gen_font_bin
 
-clock.elf: init.o clock.o
+clock.elf: init.o clock.o font.o
 	${TARGET_LD} -g -T ld.ld $^ -o clock.elf
 
 init.o: init.S
@@ -25,6 +29,6 @@ clock.o: clock.c
 clean:
 	rm -fr gen_font_bin
 	rm -fr font.bin
-	rm *.o
-	rm clock.bin
-	rm clock.elf
+	rm -fr *.o
+	rm -fr clock.bin
+	rm -fr clock.elf
