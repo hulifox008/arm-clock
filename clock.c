@@ -1,5 +1,11 @@
 #include "lpc17xx.h"
 
+/* DS1623 connection
+ * p1.18    DQ
+ * p1.19    CLK_n
+ * p1.20    RST_n
+ */
+
 extern unsigned char fontdata;
 extern int fontdata_size;
 
@@ -15,6 +21,8 @@ void gpio_init()
     writeb(0, PINSEL2);
     writeb(0, PINSEL2+1);
     writeb(0, PINSEL2+2);
+    writeb(0, PINSEL3);
+    writeb(0, PINSEL3+1);
 
     /* All used GPIO pins have pull-up */
     writeb(0, PINMODE0);
@@ -24,12 +32,15 @@ void gpio_init()
     writeb(0, PINMODE2);
     writeb(0, PINMODE2+1);
     writeb(0, PINMODE2+2);
+    writeb(0, PINMODE3);
+    writeb(0, PINMODE3+1);
 
     /* All used GPIO pins are output */
     writeb(0xFF, FIO0DIR);
     writeb(0xFF, FIO0DIR+2);
     writeb(0xFF, FIO1DIR);
     writeb(0xFF, FIO1DIR+1);
+    writeb(0xFF, FIO1DIR+2);
 
     writeb(0, FIO0MASK);
     writeb(0, FIO0MASK+2);
@@ -39,6 +50,9 @@ void gpio_init()
 
     /* P1.8 P1.9 */
     writeb(0xFC, FIO1MASK+1);
+
+    /* p1.18, p1.19, p1.20 are used to access DS1623 */
+    writeb(0xE3, FIO1MASK+2);
 
 
     /* set GPIO initial status 
@@ -123,6 +137,9 @@ void sys_init()
 
     /* disable MAT0.0 on P1.28 */
     writeb(readb(PINSEL3+3) & ~0x03, PINSEL3+3);
+
+    /* enable RTC */
+    writeb(1, RTC_CCR);
 
 }
 
@@ -285,7 +302,7 @@ void lcd_fill_rect(unsigned char x, unsigned short y, unsigned char w, unsigned 
             hy32b_write(color);
 }
 
-void lcd_show_tile(unsigned char x, unsigned short y, unsigned char t)
+void lcd_show_tile(unsigned char x, unsigned short y, unsigned char t, unsigned short color)
 {
     unsigned char * p = (char*)&fontdata+(t*280); /* each tile is 280 bytes. */
 
@@ -305,7 +322,7 @@ void lcd_show_tile(unsigned char x, unsigned short y, unsigned char t)
         for(b=0;b<8;b++)
         {
             if(c&0x80)
-                hy32b_write(0x0FF0);
+                hy32b_write(color);
             else
                 hy32b_write(0x0000);
             c=c<<1;
@@ -319,13 +336,139 @@ void update_clock()
     unsigned char s = readb(0x40024020);
     unsigned char m = readb(0x40024024);
 
-    lcd_show_tile(20, 20, m/10);
-    lcd_show_tile(60, 20, m%10);
-    lcd_show_tile(100, 20, 10);
-    lcd_show_tile(140, 20, s/10);
-    lcd_show_tile(180, 20, s%10);
+    lcd_show_tile(20, 50, m/10, 0x0FF0);
+    lcd_show_tile(60, 50, m%10, 0x0FF0);
+    lcd_show_tile(100, 50, 10, 0x0FF0);
+    lcd_show_tile(140, 50, s/10, 0x0FF0);
+    lcd_show_tile(180, 50, s%10, 0x0FF0);
 }
 
+void delay()
+{
+    int i = 0;
+    volatile int t;
+    for(i=0;i<100;i++)
+        t=0;
+}
+
+inline void ds1623_rst_hi()
+{
+    writeb(1, BITBAND_ADDR(0x22000000, FIO1PIN-0x20000000, 20));
+    dmb();
+}
+
+inline void ds1623_rst_lo()
+{
+    writeb(0, BITBAND_ADDR(0x22000000, FIO1PIN-0x20000000, 20));
+    dmb();
+}
+
+inline void ds1623_clk_hi()
+{
+    writeb(1, BITBAND_ADDR(0x22000000, FIO1PIN-0x20000000, 19));
+    dmb();
+}
+
+inline void ds1623_clk_lo()
+{
+    writeb(0, BITBAND_ADDR(0x22000000, FIO1PIN-0x20000000, 19));
+    dmb();
+}
+
+inline void ds1623_dq_hi()
+{
+    writeb(1, BITBAND_ADDR(0x22000000, FIO1PIN-0x20000000, 18));
+    dmb();
+}
+
+inline void ds1623_dq_lo()
+{
+    writeb(0, BITBAND_ADDR(0x22000000, FIO1PIN-0x20000000, 18));
+    dmb();
+}
+
+inline void ds1623_dq_input()
+{
+    writeb(0, BITBAND_ADDR(0x22000000, FIO1DIR-0x20000000, 18));
+    dmb();
+}
+
+inline void ds1623_dq_output()
+{
+    writeb(1, BITBAND_ADDR(0x22000000, FIO1DIR-0x20000000, 18));
+    dmb();
+}
+
+inline unsigned int ds1623_dq()
+{
+    return readb(BITBAND_ADDR(0x22000000, FIO1PIN-0x20000000, 18));
+}
+
+void ds1623_send_command(unsigned char cmd)
+{
+    int i;
+    for(i=0;i<8;i++)
+    {
+        ds1623_clk_lo();
+        if(cmd&1)
+            ds1623_dq_hi();
+        else
+            ds1623_dq_lo();
+
+        delay();
+        ds1623_clk_hi();
+        delay();
+        cmd = cmd>>1;
+    }
+}
+
+void ds1623_init()
+{
+    ds1623_rst_lo();
+    ds1623_clk_hi();
+    ds1623_dq_output();
+    ms_delay(10);
+    
+    ds1623_rst_hi();
+    delay();
+    ds1623_send_command(0xEE);
+    ds1623_rst_lo();
+    delay();
+}
+
+unsigned char ds1623_read_temp()
+{
+    ds1623_rst_hi();
+    delay();
+    ds1623_send_command(0xAA);
+    
+    int i;
+    unsigned char t = 0;
+    ds1623_dq_input();
+    delay();
+    for(i=0;i<9;i++)
+    {
+        t=t>>1;
+        ds1623_clk_lo();
+        delay();
+        if(ds1623_dq())
+            t|=0x80;
+        ds1623_clk_hi();
+        delay();
+    }
+    ds1623_dq_output();
+    ds1623_rst_lo();
+    delay();
+    return t;
+}
+
+void update_temp()
+{
+    unsigned char t = ds1623_read_temp();
+    lcd_show_tile(50, 200, t/10, 0xF000);
+    lcd_show_tile(90, 200, t%10, 0xF000);
+    lcd_show_tile(150, 200, 11, 0xF000);
+}
 int clock_main()
 {
     sys_init();
@@ -333,12 +476,15 @@ int clock_main()
     timer0_init();
     lcd_init();
 
+    ds1623_init();
+
     lcd_fill_rect(0, 0, 240, 320, 0x0000);
     int i = 0;
     for(;;)
     {
         ms_delay(1000);
         update_clock();
+        update_temp();
     }
     return 0;
 }

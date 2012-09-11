@@ -21,6 +21,8 @@
 
 #define P1_BITBANG  0x23380680
 
+#define RTC_CCR     0x40024008
+
 #define PINSEL0     0x4002C000
 #define PINSEL1     0x4002C004
 #define PINSEL2     0x4002C008
@@ -29,6 +31,7 @@
 #define PINMODE0    0x4002C040
 #define PINMODE1    0x4002C044
 #define PINMODE2    0x4002C048
+#define PINMODE3    0x4002C04C
 
 #define T0IR        0x40004000
 #define T0TCR       0x40004004
@@ -62,6 +65,13 @@
 #define PCLKSEL0    0x400FC1A8
 #define PCLKSEL1    0x400FC1AC
 
+/* 
+ * base       : bitband alias base address.
+ * byte_offset: offset of byte which contain desired bit.
+ * bit_offfset: bit offset in its byte (0 ~ 7)
+ */
+#define BITBAND_ADDR(base, byte_offset, bit_offset) \
+((base)+(byte_offset)*32+(bit_offset)*4)
 
 #define writeb(v, a)    (*(volatile unsigned char *)(a) = (v))
 #define writew(v, a)    (*(volatile unsigned short *)(a) = (v))
