@@ -62,6 +62,7 @@
 #define PLL0STAT    0x400FC088
 #define PLL0FEED    0x400FC08C
 
+#define SCS         0x400fC1A0
 #define PCLKSEL0    0x400FC1A8
 #define PCLKSEL1    0x400FC1AC
 

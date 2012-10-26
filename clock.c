@@ -4,7 +4,20 @@
  * p1.18    DQ
  * p1.19    CLK_n
  * p1.20    RST_n
+*/
+
+
+/* LCD connection
+ *
+ * p0.1 - p0.7   D0-D7
+ * P0.16 - p0.23 D8-D15
+ * P1.0          CS_n
+ * P1.1          RS
+ * P1.4          RD_n
+ * P1.8          WR_n
+ * P1.9          RESET_n
  */
+
 
 extern unsigned char fontdata;
 extern int fontdata_size;
@@ -129,6 +142,10 @@ void sys_init()
     /* Disable all interrupts */
     writel(0xFFFFFFFF, ICER0);
     writel(0xFFFFFFFF, ICER1);
+
+    /* Enable main oscillator and wait for stable. */
+    writel(0x20, SCS);
+    while(!(readl(SCS)&0x40));
 
     /* select main oscillator as PLL0 input. */
     writeb(0x01, CLKSRCSEL);
